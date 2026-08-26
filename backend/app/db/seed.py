@@ -32,8 +32,8 @@ def seed_reference_data(db: Session) -> None:
             FormField(schema_id=sales_form.id, key="sales_person", label="Sales", field_type="text", required=True, position=1, config={"max_length": 100, "hint": "业务人员"}),
             FormField(schema_id=sales_form.id, key="sales_team", label="Sales Team", field_type="select", required=True, position=2, config={"options": ["海外留学", "香港保险", "身份规划"], "hint": "业务团队"}),
             FormField(schema_id=sales_form.id, key="sales_amount", label="本周销售额", field_type="currency", required=True, position=3, config={"min": 0, "unit": "元", "hint": "人民币/元"}),
-            FormField(schema_id=sales_form.id, key="new_leads", label="新增线索数", field_type="number", required=True, position=4, config={"min": 0, "step": 1}),
-            FormField(schema_id=sales_form.id, key="signed_customers", label="成交客户数", field_type="number", required=True, position=5, config={"min": 0, "step": 1}),
+            FormField(schema_id=sales_form.id, key="new_leads", label="新增线索数", field_type="number", required=True, position=4, config={"min": 0, "step": 1, "hint": "个"}),
+            FormField(schema_id=sales_form.id, key="signed_customers", label="成交客户数", field_type="number", required=True, position=5, config={"min": 0, "step": 1, "hint": "个"}),
             FormField(schema_id=sales_form.id, key="notes", label="业务说明", field_type="textarea", required=False, position=6, config={"max_length": 1000}),
         ])
         db.commit()
@@ -57,7 +57,7 @@ def _sync_sales_fields(db: Session) -> None:
     for key, position in {"sales_amount": 3, "new_leads": 4, "signed_customers": 5, "notes": 6}.items():
         if key in fields:
             fields[key].position = position
-    for key, hint in {"sales_person": "业务人员", "sales_team": "业务团队", "sales_amount": "人民币/元"}.items():
+    for key, hint in {"sales_person": "业务人员", "sales_team": "业务团队", "sales_amount": "人民币/元", "new_leads": "个", "signed_customers": "个"}.items():
         if key in fields:
             fields[key].config = fields[key].config | {"hint": hint}
     finance_form = db.scalar(select(FormSchema).where(FormSchema.code == "finance-weekly-v1"))
