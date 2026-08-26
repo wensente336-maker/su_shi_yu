@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     database_url: str
     environment: str = "development"
     development_default_user: str = "admin"
+    cors_origins: str = "http://localhost:3100"
     report_source_root: str = "/report-source"
     ai_provider: str = "disabled"
     ai_model: str = "gpt-4.1-mini"
@@ -18,3 +19,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def allowed_origins() -> list[str]:
+    return [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]

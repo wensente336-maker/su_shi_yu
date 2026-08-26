@@ -12,6 +12,8 @@ def get_current_employee(
     development_user: str | None = Header(default=None, alias="X-Development-User"),
 ) -> Employee:
     """Development adapter; replace this resolver with validated WeCom identity in production."""
+    if settings.environment != "development":
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="生产环境尚未配置企业微信身份验证适配器")
     employee_code = development_user or settings.development_default_user
     employee = db.scalar(select(Employee).where(Employee.employee_code == employee_code, Employee.is_active.is_(True)))
     if employee is None:

@@ -17,6 +17,11 @@ services:
   api:
     build: ./backend
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
     volumes:
       - ${REPORT_SOURCE_HOST_PATH:-/Users/yucai/.hermes/profiles/tang_yu_heng/workspace}:/report-source:ro

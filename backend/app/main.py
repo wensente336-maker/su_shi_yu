@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routes import router as api_v1_router
 from app.api.v1.analysis_routes import router as analysis_router
 from app.api.v1.dashboard_routes import router as dashboard_router
-from app.core.config import settings
+from app.core.config import allowed_origins, settings
 from app.db import Base, SessionLocal, engine
 from app.db.seed import seed_reference_data
 from app.services.wecom import deliver_weekly_summary
@@ -41,7 +41,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3100"],
+    allow_origins=allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

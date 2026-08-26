@@ -40,6 +40,17 @@
 
 仅当 `WECOM_PUSH_ENABLED=true`、配置未提交到 Git 的 `WECOM_WEBHOOK_URL`，且存在人工审核通过的 AI 分析时，系统才会发送企业微信机器人 Markdown 消息。启用后会在 `WECOM_PUSH_WEEKDAY`（默认周五）`WECOM_PUSH_HOUR`（默认 18 点）定时执行。
 
+## 安全、测试与备份
+
+生产环境必须设置 `ENVIRONMENT=production` 并先接入企业微信身份验证；开发身份请求头会被 API 拒绝。`api` 容器以非 root 用户运行、采用只读根文件系统，且周报来源目录固定为只读挂载。
+
+```sh
+./scripts/smoke_test.sh
+./scripts/backup_postgres.sh
+```
+
+详细上线、恢复和验收步骤见 [docs/deployment.md](docs/deployment.md)。
+
 ## 目录
 
 - `frontend/`：Next.js 响应式 Web 应用。
