@@ -7,4 +7,5 @@ node_modules/
 .next/
 dist/
 backups/
+logs/
 *.sql.gz
