@@ -26,12 +26,12 @@ def seed_reference_data(db: Session) -> None:
         db.add_all([finance_form, sales_form])
         db.flush()
         db.add_all([
-        FormField(schema_id=finance_form.id, key="revenue", label="本周营业收入", field_type="currency", required=True, position=1, config={"min": 0, "unit": "元"}),
-        FormField(schema_id=finance_form.id, key="cash_inflow", label="本周回款", field_type="currency", required=True, position=2, config={"min": 0, "unit": "元"}),
+        FormField(schema_id=finance_form.id, key="revenue", label="本周营业收入", field_type="currency", required=True, position=1, config={"min": 0, "unit": "元", "hint": "人民币/元"}),
+        FormField(schema_id=finance_form.id, key="cash_inflow", label="本周回款", field_type="currency", required=True, position=2, config={"min": 0, "unit": "元", "hint": "人民币/元"}),
         FormField(schema_id=finance_form.id, key="notes", label="异常说明", field_type="textarea", required=False, position=3, config={"max_length": 1000}),
-            FormField(schema_id=sales_form.id, key="sales_person", label="Sales", field_type="text", required=True, position=1, config={"max_length": 100}),
-            FormField(schema_id=sales_form.id, key="sales_team", label="Sales Team", field_type="select", required=True, position=2, config={"options": ["海外留学", "香港保险", "身份规划"]}),
-            FormField(schema_id=sales_form.id, key="sales_amount", label="本周销售额", field_type="currency", required=True, position=3, config={"min": 0, "unit": "元"}),
+            FormField(schema_id=sales_form.id, key="sales_person", label="Sales", field_type="text", required=True, position=1, config={"max_length": 100, "hint": "业务人员"}),
+            FormField(schema_id=sales_form.id, key="sales_team", label="Sales Team", field_type="select", required=True, position=2, config={"options": ["海外留学", "香港保险", "身份规划"], "hint": "业务团队"}),
+            FormField(schema_id=sales_form.id, key="sales_amount", label="本周销售额", field_type="currency", required=True, position=3, config={"min": 0, "unit": "元", "hint": "人民币/元"}),
             FormField(schema_id=sales_form.id, key="new_leads", label="新增线索数", field_type="number", required=True, position=4, config={"min": 0, "step": 1}),
             FormField(schema_id=sales_form.id, key="signed_customers", label="成交客户数", field_type="number", required=True, position=5, config={"min": 0, "step": 1}),
             FormField(schema_id=sales_form.id, key="notes", label="业务说明", field_type="textarea", required=False, position=6, config={"max_length": 1000}),
@@ -47,8 +47,8 @@ def _sync_sales_fields(db: Session) -> None:
     if form is None:
         return
     required_fields = {
-        "sales_person": {"label": "Sales", "field_type": "text", "required": True, "position": 1, "config": {"max_length": 100}},
-        "sales_team": {"label": "Sales Team", "field_type": "select", "required": True, "position": 2, "config": {"options": ["海外留学", "香港保险", "身份规划"]}},
+        "sales_person": {"label": "Sales", "field_type": "text", "required": True, "position": 1, "config": {"max_length": 100, "hint": "业务人员"}},
+        "sales_team": {"label": "Sales Team", "field_type": "select", "required": True, "position": 2, "config": {"options": ["海外留学", "香港保险", "身份规划"], "hint": "业务团队"}},
     }
     fields = {field.key: field for field in db.scalars(select(FormField).where(FormField.schema_id == form.id)).all()}
     for key, specification in required_fields.items():
@@ -57,5 +57,15 @@ def _sync_sales_fields(db: Session) -> None:
     for key, position in {"sales_amount": 3, "new_leads": 4, "signed_customers": 5, "notes": 6}.items():
         if key in fields:
             fields[key].position = position
-    form.version = max(form.version, 2)
+    for key, hint in {"sales_person": "业务人员", "sales_team": "业务团队", "sales_amount": "人民币/元"}.items():
+        if key in fields:
+            fields[key].config = fields[key].config | {"hint": hint}
+    finance_form = db.scalar(select(FormSchema).where(FormSchema.code == "finance-weekly-v1"))
+    if finance_form:
+        finance_fields = {field.key: field for field in db.scalars(select(FormField).where(FormField.schema_id == finance_form.id)).all()}
+        for key in {"revenue", "cash_inflow"}:
+            if key in finance_fields:
+                finance_fields[key].config = finance_fields[key].config | {"hint": "人民币/元"}
+        finance_form.version = max(finance_form.version, 2)
+    form.version = max(form.version, 3)
     db.commit()

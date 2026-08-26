@@ -68,7 +68,7 @@ export default function HomePage() {
       <h2>{selected.name}</h2>
       {selected.description && <p>{selected.description}</p>}
       {selected.fields.map((field) => <label key={field.key} style={{ display: "grid", gap: 6 }}>
-        {field.label}{field.required ? " *" : ""}
+        {field.label}{field.config.hint ? `（${String(field.config.hint)}）` : ""}{field.required ? " *" : ""}
         {field.type === "textarea" ? <textarea required={field.required} maxLength={Number(field.config.max_length) || undefined} value={values[field.key] ?? ""} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })} rows={5} /> : field.type === "select" ? <select required={field.required} value={values[field.key] ?? ""} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}><option value="">请选择</option>{Array.isArray(field.config.options) && field.config.options.map((option) => <option key={String(option)} value={String(option)}>{String(option)}</option>)}</select> : <input required={field.required} maxLength={field.type === "text" ? Number(field.config.max_length) || undefined : undefined} min={typeof field.config.min === "number" ? field.config.min : undefined} step={field.type === "currency" ? "0.01" : "1"} type={field.type === "text" ? "text" : "number"} value={values[field.key] ?? ""} onChange={(e) => setValues({ ...values, [field.key]: e.target.value })} />}
       </label>)}
       <button type="submit" style={{ width: 140, padding: "0.6rem" }}>提交本周数据</button>
