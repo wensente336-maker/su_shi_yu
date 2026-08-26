@@ -32,6 +32,14 @@
 
 配置 `AI_PROVIDER=openai` 和未提交到 Git 的 `OPENAI_API_KEY` 后，分析接口才会调用模型；未配置时不会产生伪造结论。
 
+## 驾驶舱与企业微信推送
+
+- `GET /api/v1/dashboard/overview`：当前统计周的经营指标、周报快照和最新分析状态。
+- `POST /api/v1/wecom-deliveries/weekly`：管理员手动触发推送（默认只记录“未启用”，不会向外发送）。
+- `GET /api/v1/wecom-deliveries`：推送审计记录。
+
+仅当 `WECOM_PUSH_ENABLED=true`、配置未提交到 Git 的 `WECOM_WEBHOOK_URL`，且存在人工审核通过的 AI 分析时，系统才会发送企业微信机器人 Markdown 消息。启用后会在 `WECOM_PUSH_WEEKDAY`（默认周五）`WECOM_PUSH_HOUR`（默认 18 点）定时执行。
+
 ## 目录
 
 - `frontend/`：Next.js 响应式 Web 应用。

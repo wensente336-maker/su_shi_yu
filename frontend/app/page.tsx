@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type FormField = { key: string; label: string; type: string; required: boolean; config: Record<string, unknown> };
 type FormSchema = { code: string; name: string; description?: string; department: string; fields?: FormField[] };
 type Week = { id: number; week_start: string; week_end: string; status: string; is_current: boolean };
+type Overview = { metrics: { key: string; label: string; value: number; unit: string }[]; submission_count: number; analysis: { status: string; output?: string } | null; report_snapshot: { source_kind: string } | null };
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100";
 
@@ -14,6 +15,7 @@ export default function HomePage() {
   const [week, setWeek] = useState<Week | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("正在加载可用表单…");
+  const [overview, setOverview] = useState<Overview | null>(null);
 
   useEffect(() => {
     Promise.all([fetch(`${apiBase}/api/v1/form-schemas`).then((r) => r.json()), fetch(`${apiBase}/api/v1/reporting-weeks/current`).then((r) => r.json())])
@@ -24,6 +26,10 @@ export default function HomePage() {
         setMessage("");
       })
       .catch(() => setMessage("无法连接经营数据服务，请确认后端已启动。"));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/v1/dashboard/overview`).then((response) => response.ok ? response.json() : null).then(setOverview).catch(() => setOverview(null));
   }, []);
 
   useEffect(() => {
@@ -58,6 +64,13 @@ export default function HomePage() {
   return <main style={{ fontFamily: "system-ui, sans-serif", margin: "3rem auto", maxWidth: 760, padding: "0 1rem" }}>
     <h1>公司经营数据中心</h1>
     <p>当前统计周：{period || "加载中"}</p>
+    {overview && <section style={{ margin: "1.5rem 0", padding: "1rem", background: "#f4f7fb", borderRadius: 10 }}>
+      <h2 style={{ marginTop: 0 }}>经营驾驶舱</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+        {overview.metrics.map((metric) => <div key={metric.key} style={{ background: "white", padding: 12, borderRadius: 8 }}><small>{metric.label}</small><br /><strong>{metric.value.toLocaleString("zh-CN")} {metric.unit}</strong></div>)}
+      </div>
+      <p>已提交表单：{overview.submission_count} 份；周报来源：{overview.report_snapshot?.source_kind ?? "未读取"}；分析状态：{overview.analysis?.status ?? "未生成"}</p>
+    </section>}
     <label>选择表单　
       <select value={selected?.code ?? ""} onChange={(e) => setSelected(schemas.find((item) => item.code === e.target.value) ?? null)}>
         {schemas.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}

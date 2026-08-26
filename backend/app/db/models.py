@@ -122,3 +122,17 @@ class BusinessAnalysis(Base):
     reporting_week: Mapped[ReportingWeek] = relationship(foreign_keys=[reporting_week_id])
     report_snapshot: Mapped[ReportSnapshot] = relationship()
     reviewer: Mapped[Employee | None] = relationship(foreign_keys=[reviewer_id])
+
+
+class WecomDelivery(Base):
+    __tablename__ = "wecom_deliveries"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
+    business_analysis_id: Mapped[int | None] = mapped_column(ForeignKey("business_analyses.id"))
+    trigger: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(30))
+    message: Mapped[str] = mapped_column(Text)
+    response_code: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reporting_week: Mapped[ReportingWeek] = relationship()
+    business_analysis: Mapped[BusinessAnalysis | None] = relationship()
