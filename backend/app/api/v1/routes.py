@@ -116,6 +116,20 @@ def _validate_values(fields: list[FormField], values: dict[str, Any]) -> dict[st
             if max_length and len(value) > max_length:
                 raise HTTPException(status_code=422, detail=f"{field.label}不能超过{max_length}个字符")
             cleaned[field.key] = value.strip()
+        elif field.field_type == "text":
+            if not isinstance(value, str):
+                raise HTTPException(status_code=422, detail=f"{field.label}必须为文本")
+            text_value = value.strip()
+            if not text_value:
+                raise HTTPException(status_code=422, detail=f"{field.label}不能为空")
+            if field.config.get("max_length") and len(text_value) > field.config["max_length"]:
+                raise HTTPException(status_code=422, detail=f"{field.label}不能超过{field.config['max_length']}个字符")
+            cleaned[field.key] = text_value
+        elif field.field_type == "select":
+            options = field.config.get("options", [])
+            if not isinstance(value, str) or value not in options:
+                raise HTTPException(status_code=422, detail=f"{field.label}必须从预设选项中选择")
+            cleaned[field.key] = value
         else:
             cleaned[field.key] = value
     return cleaned
