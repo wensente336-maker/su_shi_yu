@@ -9,8 +9,8 @@
 ## 启动
 
 1. 复制 `.env.example` 为 `.env` 并设置强密码。
-2. 执行 `docker compose up --build`。
-3. 打开前端 `http://localhost:3000`；后端健康检查为 `http://localhost:8000/health`。
+2. 执行 `docker-compose up --build`。
+3. 打开前端 `http://localhost:3100`；后端健康检查为 `http://localhost:8100/health`。端口可在 `.env` 中调整。
 
 ## 目录
 
