@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     ai_provider: str = "disabled"
     ai_model: str = "gpt-4.1-mini"
     openai_api_key: str | None = None
+    hermes_analysis_enabled: bool = False
+    hermes_analysis_url: str = "http://host.docker.internal:8120"
+    hermes_analysis_token: str | None = None
     wecom_push_enabled: bool = False
     wecom_webhook_url: str | None = None
     wecom_aibot_enabled: bool = False

@@ -84,7 +84,7 @@ def create_analysis(payload: AnalysisRequest = AnalysisRequest(), db: Session = 
     )
     prompt = build_analysis_prompt(structured_data, snapshot.content, previous_snapshot.content if previous_snapshot else None)
     status, model, output = generate_analysis(prompt)
-    item = BusinessAnalysis(reporting_week_id=week.id, report_snapshot_id=snapshot.id, structured_data=structured_data, prompt=prompt, output=output, provider=settings.ai_provider, model=model, status=status)
+    item = BusinessAnalysis(reporting_week_id=week.id, report_snapshot_id=snapshot.id, structured_data=structured_data, prompt=prompt, output=output, provider="hermes" if settings.hermes_analysis_enabled else settings.ai_provider, model=model, status=status)
     db.add(item)
     db.commit()
     db.refresh(item)

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.business-dashboard.hermes-analysis</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/yucai/.hermes/hermes-agent/venv/bin/python</string>
+    <string>/Users/yucai/.hermes/profiles/su_shi_yu/business-dashboard/hermes-bridge.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/yucai/.hermes/profiles/su_shi_yu/business-dashboard</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HERMES_ANALYSIS_TOKEN</key>
+    <string>49ea4599970eec961308dde4144d4eed4f8674228dd1639cb9666c59e96f35ba</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/yucai/.hermes/profiles/su_shi_yu/business-dashboard/logs/hermes-analysis.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/yucai/.hermes/profiles/su_shi_yu/business-dashboard/logs/hermes-analysis.err.log</string>
+</dict>
+</plist>

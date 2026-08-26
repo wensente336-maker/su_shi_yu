@@ -63,7 +63,7 @@ def _generate_analysis(db: Session, week: ReportingWeek, snapshot: ReportSnapsho
         structured_data=structured_data,
         prompt=prompt,
         output=output,
-        provider=settings.ai_provider,
+        provider="hermes" if settings.hermes_analysis_enabled else settings.ai_provider,
         model=model,
         status=status,
     )
@@ -76,6 +76,8 @@ def _generate_analysis(db: Session, week: ReportingWeek, snapshot: ReportSnapsho
 def run_scheduled_weekly_cycle(db: Session) -> None:
     week = db.scalar(select(ReportingWeek).where(ReportingWeek.is_current.is_(True)))
     if week is None:
+        return
+    if week.status == "simulation":
         return
     status = collection_status(db, week)
     if not status["complete"]:
