@@ -20,7 +20,7 @@ def seed_reference_data(db: Session) -> None:
         ])
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
-        db.add(ReportingWeek(week_start=week_start, week_end=week_start + timedelta(days=6), is_current=True))
+        db.add(ReportingWeek(week_start=week_start, week_end=week_start + timedelta(days=4), is_current=True))
         finance_form = FormSchema(code="finance-weekly-v1", name="财务周度经营数据", department_id=finance.id, description="财务部每周经营关键数据", version=1)
         sales_form = FormSchema(code="sales-weekly-v1", name="销售周度经营数据", department_id=sales.id, description="销售部每周经营关键数据", version=2)
         db.add_all([finance_form, sales_form])
@@ -39,6 +39,15 @@ def seed_reference_data(db: Session) -> None:
         db.commit()
 
     _sync_sales_fields(db)
+    _normalize_current_week(db)
+
+
+def _normalize_current_week(db: Session) -> None:
+    """Business reporting weeks run Monday through Friday to align with Friday reports."""
+    week = db.scalar(select(ReportingWeek).where(ReportingWeek.is_current.is_(True), ReportingWeek.status == "open"))
+    if week and week.week_start.weekday() == 0 and week.week_end == week.week_start + timedelta(days=6):
+        week.week_end = week.week_start + timedelta(days=4)
+        db.commit()
 
 
 def _sync_sales_fields(db: Session) -> None:

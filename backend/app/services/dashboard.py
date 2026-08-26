@@ -6,13 +6,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import BusinessAnalysis, FormSchema, FormSubmission, ReportSnapshot, ReportingWeek
+from app.services.completion import collection_status
 
 
 def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
     submissions = db.scalars(select(FormSubmission).where(FormSubmission.reporting_week_id == week.id).options(selectinload(FormSubmission.schema))).all()
     required_forms = db.scalars(select(FormSchema).where(FormSchema.is_active.is_(True))).all()
     submitted_form_codes = {item.schema.code for item in submissions}
-    missing_forms = [item.name for item in required_forms if item.code not in submitted_form_codes]
+    collection = collection_status(db, week)
+    collection_by_code = {item["code"]: item for item in collection["forms"]}
     totals = {"sales_amount": 0.0, "new_leads": 0.0, "signed_customers": 0.0, "revenue": 0.0, "cash_inflow": 0.0}
     for submission in submissions:
         for key in totals:
@@ -62,8 +64,16 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
             {"key": "cash_inflow", "label": "回款", "value": totals["cash_inflow"], "unit": "元"},
         ],
         "submission_count": len(submissions),
-        "collection": {"complete": not missing_forms, "required_form_count": len(required_forms), "submitted_form_count": len(submitted_form_codes), "missing_forms": missing_forms},
-        "source_status": [{"name": form.name, "kind": "form", "complete": form.code in submitted_form_codes} for form in required_forms] + [{"name": "周报快照", "kind": "report", "complete": snapshot is not None}],
+        "collection": collection,
+        "source_status": [
+            {
+                "name": form.name,
+                "kind": "form",
+                "complete": collection_by_code[form.code]["complete"],
+                "pending_people": collection_by_code[form.code]["pending_people"],
+            }
+            for form in required_forms
+        ] + [{"name": "周报快照", "kind": "report", "complete": snapshot is not None}],
         "team_performance": team_performance,
         "sales_ranking": sales_ranking,
         "trend": trend,

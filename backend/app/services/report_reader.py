@@ -58,6 +58,11 @@ class ReportReader:
             folder = self._safe_child(folder_name)
             if folder.is_dir():
                 candidates.extend(path for path in folder.rglob("*.md") if path.is_file())
+        iso_year, iso_week, _ = week_start.isocalendar()
+        iso_name = f"{iso_year}-W{iso_week:02d}.md"
+        iso_matches = [path for path in candidates if path.name == iso_name]
+        if iso_matches:
+            return sorted(iso_matches)
         tokens = {week_start.isoformat(), week_end.isoformat(), week_start.strftime("%Y%m%d"), week_end.strftime("%Y%m%d")}
         return [path for path in candidates if any(token in path.name for token in tokens)]
 

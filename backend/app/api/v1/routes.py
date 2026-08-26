@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from numbers import Real
 from typing import Any
 
@@ -53,6 +53,8 @@ def list_weeks(db: Session = Depends(get_db)) -> list[dict]:
 def create_week(payload: WeekCreate, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin"))) -> dict:
     if payload.week_end < payload.week_start:
         raise HTTPException(status_code=422, detail="周结束日期不能早于开始日期")
+    if payload.week_start.weekday() != 0 or payload.week_end != payload.week_start + timedelta(days=4):
+        raise HTTPException(status_code=422, detail="经营统计周必须为周一至周五")
     db.query(ReportingWeek).update({ReportingWeek.is_current: False})
     week = ReportingWeek(week_start=payload.week_start, week_end=payload.week_end, is_current=True)
     db.add(week)

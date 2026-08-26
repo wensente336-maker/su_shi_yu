@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     wecom_webhook_url: str | None = None
     wecom_push_weekday: int = 4
     wecom_push_hour: int = 18
+    wecom_push_minute: int = 0
+    wecom_allow_preliminary_analysis: bool = True
+    wecom_catchup_hours: int = 6
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
