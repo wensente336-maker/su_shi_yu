@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.v1.dependencies import get_current_employee, require_roles
 from app.db import get_db
-from app.db.models import Department, Employee, FormField, FormSchema, FormSubmission, ReportingWeek
+from app.db.models import Department, Employee, FormField, FormSchema, FormSubmission, ReportingWeek, TeamWeeklyTarget
 
 router = APIRouter(prefix="/api/v1")
 
@@ -22,6 +22,16 @@ class WeekCreate(BaseModel):
 class SubmissionCreate(BaseModel):
     reporting_week_id: int
     values: dict[str, Any]
+
+
+class TeamTargetUpsert(BaseModel):
+    reporting_week_id: int
+    sales_team: str
+    sales_amount_target: float
+    signed_customers_target: float | None = None
+
+
+SALES_TEAMS = {"海外留学", "香港保险", "身份规划"}
 
 
 @router.get("/me")
@@ -47,6 +57,37 @@ def current_week(db: Session = Depends(get_db)) -> dict:
 def list_weeks(db: Session = Depends(get_db)) -> list[dict]:
     weeks = db.scalars(select(ReportingWeek).order_by(ReportingWeek.week_start.desc())).all()
     return [{"id": week.id, "week_start": week.week_start, "week_end": week.week_end, "status": week.status, "is_current": week.is_current} for week in weeks]
+
+
+@router.get("/team-weekly-targets")
+def list_team_weekly_targets(reporting_week_id: int | None = None, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> list[dict]:
+    week = db.get(ReportingWeek, reporting_week_id) if reporting_week_id else db.scalar(select(ReportingWeek).where(ReportingWeek.is_current.is_(True)))
+    if week is None:
+        raise HTTPException(status_code=404, detail="统计周不存在")
+    items = db.scalars(select(TeamWeeklyTarget).where(TeamWeeklyTarget.reporting_week_id == week.id).order_by(TeamWeeklyTarget.sales_team)).all()
+    return [{"id": item.id, "reporting_week_id": item.reporting_week_id, "sales_team": item.sales_team, "sales_amount_target": item.sales_amount_target, "signed_customers_target": item.signed_customers_target, "updated_at": item.updated_at} for item in items]
+
+
+@router.post("/team-weekly-targets", status_code=201)
+def upsert_team_weekly_target(payload: TeamTargetUpsert, db: Session = Depends(get_db), employee: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
+    if payload.sales_team not in SALES_TEAMS:
+        raise HTTPException(status_code=422, detail="业务团队必须从预设团队中选择")
+    if payload.sales_amount_target < 0 or (payload.signed_customers_target is not None and payload.signed_customers_target < 0):
+        raise HTTPException(status_code=422, detail="目标值不能小于 0")
+    week = db.get(ReportingWeek, payload.reporting_week_id)
+    if week is None:
+        raise HTTPException(status_code=404, detail="统计周不存在")
+    item = db.scalar(select(TeamWeeklyTarget).where(TeamWeeklyTarget.reporting_week_id == week.id, TeamWeeklyTarget.sales_team == payload.sales_team))
+    if item is None:
+        item = TeamWeeklyTarget(reporting_week_id=week.id, sales_team=payload.sales_team, sales_amount_target=payload.sales_amount_target, signed_customers_target=payload.signed_customers_target, updated_by_id=employee.id)
+        db.add(item)
+    else:
+        item.sales_amount_target = payload.sales_amount_target
+        item.signed_customers_target = payload.signed_customers_target
+        item.updated_by_id = employee.id
+    db.commit()
+    db.refresh(item)
+    return {"id": item.id, "reporting_week_id": item.reporting_week_id, "sales_team": item.sales_team, "sales_amount_target": item.sales_amount_target, "signed_customers_target": item.signed_customers_target, "updated_at": item.updated_at}
 
 
 @router.post("/reporting-weeks", status_code=201)

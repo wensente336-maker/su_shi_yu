@@ -1,0 +1,20 @@
+:global(*) { box-sizing: border-box; }
+:global(body) { margin: 0; background: #f5f8fc; }
+.page { min-height: 100vh; padding: 52px 24px; color: #172033; font-family: system-ui, sans-serif; }
+.shell { max-width: 920px; margin: auto; }
+.back { color: #0b4ea2; font-size: 14px; font-weight: 700; text-decoration: none; }
+.shell header { margin: 34px 0 22px; }
+.shell header p { margin: 0 0 8px; color: #1677ff; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.shell h1 { margin: 0; font-size: clamp(30px, 5vw, 42px); letter-spacing: -.04em; }
+.shell header span { display: block; margin-top: 10px; color: #71809a; font-size: 14px; }
+.notice { margin-bottom: 20px; padding: 14px 16px; border: 1px solid #cfe0f5; border-radius: 12px; background: #eef6ff; color: #28567f; font-size: 14px; line-height: 1.6; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { display: grid; gap: 15px; padding: 21px; border: 1px solid #dfe8f2; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px #0b4ea20d; }
+.card h2 { margin: 0; font-size: 19px; }
+.card label { display: grid; gap: 7px; color: #4b5d78; font-size: 13px; font-weight: 650; }
+.card input { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #cfdbea; border-radius: 9px; color: #172033; font-size: 16px; outline: none; }
+.card input:focus { border-color: #1677ff; box-shadow: 0 0 0 3px #1677ff1c; }
+.card button { min-height: 46px; margin-top: 6px; border: 0; border-radius: 9px; background: #0b4ea2; color: #fff; font-size: 15px; font-weight: 750; cursor: pointer; }
+.card button:disabled { opacity: .55; cursor: wait; }
+.status { margin: 20px 0; color: #137344; font-size: 14px; font-weight: 650; }
+@media (max-width: 720px) { .page { padding: 28px 14px; }.grid { grid-template-columns: 1fr; }.card { padding: 18px; } }

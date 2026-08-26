@@ -104,6 +104,23 @@ class ReportSnapshot(Base):
     reporting_week: Mapped[ReportingWeek] = relationship()
 
 
+class TeamWeeklyTarget(Base):
+    __tablename__ = "team_weekly_targets"
+    __table_args__ = (
+        UniqueConstraint("reporting_week_id", "sales_team", name="uq_team_weekly_target"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
+    sales_team: Mapped[str] = mapped_column(String(100))
+    sales_amount_target: Mapped[float] = mapped_column()
+    signed_customers_target: Mapped[float | None] = mapped_column()
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    reporting_week: Mapped[ReportingWeek] = relationship()
+    updated_by: Mapped[Employee | None] = relationship(foreign_keys=[updated_by_id])
+
+
 class BusinessAnalysis(Base):
     __tablename__ = "business_analyses"
     id: Mapped[int] = mapped_column(primary_key=True)
