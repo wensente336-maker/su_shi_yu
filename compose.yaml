@@ -30,6 +30,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      wecom-aibot:
+        condition: service_started
+
+  wecom-aibot:
+    build: ./wecom-aibot
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      WECOM_AIBOT_BOT_ID: ${WECOM_AIBOT_BOT_ID}
+      WECOM_AIBOT_SECRET: ${WECOM_AIBOT_SECRET}
+      WECOM_AIBOT_INTERNAL_TOKEN: ${WECOM_AIBOT_INTERNAL_TOKEN}
+    expose:
+      - "8090"
 
   web:
     build:

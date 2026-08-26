@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     wecom_push_enabled: bool = False
     wecom_webhook_url: str | None = None
+    wecom_aibot_enabled: bool = False
+    wecom_aibot_url: str = "http://wecom-aibot:8090"
+    wecom_aibot_target_userid: str | None = None
+    wecom_aibot_internal_token: str | None = None
     wecom_push_weekday: int = 4
     wecom_push_hour: int = 18
     wecom_push_minute: int = 0

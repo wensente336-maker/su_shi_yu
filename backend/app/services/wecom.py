@@ -31,14 +31,24 @@ def _already_sent(db: Session, week_id: int, trigger: str) -> WecomDelivery | No
 
 
 def _post_or_record(db: Session, week: ReportingWeek, trigger: str, message: str, analysis_id: int | None = None) -> WecomDelivery:
-    if not settings.wecom_push_enabled or not settings.wecom_webhook_url:
-        item = WecomDelivery(reporting_week_id=week.id, business_analysis_id=analysis_id, trigger=trigger, status="skipped", message="推送未启用或未配置 Webhook；未发送外部消息。")
+    if not settings.wecom_push_enabled:
+        item = WecomDelivery(reporting_week_id=week.id, business_analysis_id=analysis_id, trigger=trigger, status="skipped", message="推送未启用；未发送外部消息。")
     else:
         try:
-            response = httpx.post(settings.wecom_webhook_url, json={"msgtype": "markdown", "markdown": {"content": message}}, timeout=15)
+            if settings.wecom_aibot_enabled and settings.wecom_aibot_target_userid and settings.wecom_aibot_internal_token:
+                response = httpx.post(
+                    f"{settings.wecom_aibot_url.rstrip('/')}/send",
+                    headers={"Authorization": f"Bearer {settings.wecom_aibot_internal_token}"},
+                    json={"target_userid": settings.wecom_aibot_target_userid, "content": message},
+                    timeout=20,
+                )
+            elif settings.wecom_webhook_url:
+                response = httpx.post(settings.wecom_webhook_url, json={"msgtype": "markdown", "markdown": {"content": message}}, timeout=15)
+            else:
+                raise RuntimeError("未配置智能机器人或群 Webhook 推送通道")
             response.raise_for_status()
             item = WecomDelivery(reporting_week_id=week.id, business_analysis_id=analysis_id, trigger=trigger, status="sent", message=message, response_code=response.status_code)
-        except httpx.HTTPError as error:
+        except (httpx.HTTPError, RuntimeError) as error:
             item = WecomDelivery(reporting_week_id=week.id, business_analysis_id=analysis_id, trigger=trigger, status="failed", message=str(error), response_code=None)
     db.add(item)
     db.commit()
@@ -66,7 +76,7 @@ def deliver_weekly_summary(db: Session, trigger: str) -> WecomDelivery:
     approved = analysis and analysis["status"] == "review_approved"
     preliminary = analysis and analysis["status"] == "generated" and settings.wecom_allow_preliminary_analysis
     message = _message(overview)
-    if not settings.wecom_push_enabled or not settings.wecom_webhook_url:
+    if not settings.wecom_push_enabled:
         return _post_or_record(db, week, trigger, message, analysis["id"] if analysis else None)
     elif not overview["collection"]["complete"]:
         return deliver_exception(db, week, trigger, f"尚未收齐经营数据：{', '.join(overview['collection']['missing_forms'])}")
