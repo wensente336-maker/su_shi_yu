@@ -24,6 +24,12 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
     approved = db.scalar(select(BusinessAnalysis).where(BusinessAnalysis.reporting_week_id == week.id, BusinessAnalysis.status == "review_approved").order_by(BusinessAnalysis.reviewed_at.desc()))
     latest = approved or db.scalar(select(BusinessAnalysis).where(BusinessAnalysis.reporting_week_id == week.id).order_by(BusinessAnalysis.generated_at.desc()))
     snapshot = db.scalar(select(ReportSnapshot).where(ReportSnapshot.reporting_week_id == week.id).order_by(ReportSnapshot.retrieved_at.desc()))
+    previous_snapshot = db.scalar(
+        select(ReportSnapshot)
+        .join(ReportingWeek, ReportingWeek.id == ReportSnapshot.reporting_week_id)
+        .where(ReportingWeek.week_end < week.week_start)
+        .order_by(ReportingWeek.week_end.desc(), ReportSnapshot.retrieved_at.desc())
+    )
     teams: dict[str, dict[str, float]] = {}
     people: dict[str, dict[str, float | str]] = {}
     for submission in submissions:
@@ -73,11 +79,20 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
                 "pending_people": collection_by_code[form.code]["pending_people"],
             }
             for form in required_forms
-        ] + [{"name": "周报快照", "kind": "report", "complete": snapshot is not None}],
+        ] + [
+            {"name": "本周周报快照", "kind": "report", "complete": snapshot is not None},
+            {"name": "上周真实周报背景", "kind": "report", "complete": previous_snapshot is not None},
+        ],
         "team_performance": team_performance,
         "sales_ranking": sales_ranking,
         "trend": trend,
         "targets": {"configured": False, "message": "尚未配置团队周度目标"},
         "report_snapshot": {"id": snapshot.id, "source_kind": snapshot.source_kind, "retrieved_at": snapshot.retrieved_at} if snapshot else None,
+        "previous_week_report": {
+            "week_start": previous_snapshot.reporting_week.week_start,
+            "week_end": previous_snapshot.reporting_week.week_end,
+            "source_kind": previous_snapshot.source_kind,
+            "retrieved_at": previous_snapshot.retrieved_at,
+        } if previous_snapshot else None,
         "analysis": {"id": latest.id, "status": latest.status, "output": latest.output, "review_comment": latest.review_comment} if latest else None,
     }

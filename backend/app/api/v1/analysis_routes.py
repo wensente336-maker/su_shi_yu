@@ -76,7 +76,13 @@ def create_analysis(payload: AnalysisRequest = AnalysisRequest(), db: Session = 
         raise HTTPException(status_code=404, detail="请先生成该统计周的周报快照")
     submissions = db.scalars(select(FormSubmission).where(FormSubmission.reporting_week_id == week.id).options(selectinload(FormSubmission.schema), selectinload(FormSubmission.employee))).all()
     structured_data = {"week": {"start": week.week_start.isoformat(), "end": week.week_end.isoformat()}, "submissions": [{"form": item.schema.code, "employee": item.employee.name, "values": item.values} for item in submissions]}
-    prompt = build_analysis_prompt(structured_data, snapshot.content)
+    previous_snapshot = db.scalar(
+        select(ReportSnapshot)
+        .join(ReportingWeek, ReportingWeek.id == ReportSnapshot.reporting_week_id)
+        .where(ReportingWeek.week_end < week.week_start)
+        .order_by(ReportingWeek.week_end.desc(), ReportSnapshot.retrieved_at.desc())
+    )
+    prompt = build_analysis_prompt(structured_data, snapshot.content, previous_snapshot.content if previous_snapshot else None)
     status, model, output = generate_analysis(prompt)
     item = BusinessAnalysis(reporting_week_id=week.id, report_snapshot_id=snapshot.id, structured_data=structured_data, prompt=prompt, output=output, provider=settings.ai_provider, model=model, status=status)
     db.add(item)

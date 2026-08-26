@@ -49,7 +49,13 @@ def _generate_analysis(db: Session, week: ReportingWeek, snapshot: ReportSnapsho
             for item in submissions
         ],
     }
-    prompt = build_analysis_prompt(structured_data, snapshot.content)
+    previous_snapshot = db.scalar(
+        select(ReportSnapshot)
+        .join(ReportingWeek, ReportingWeek.id == ReportSnapshot.reporting_week_id)
+        .where(ReportingWeek.week_end < week.week_start)
+        .order_by(ReportingWeek.week_end.desc(), ReportSnapshot.retrieved_at.desc())
+    )
+    prompt = build_analysis_prompt(structured_data, snapshot.content, previous_snapshot.content if previous_snapshot else None)
     status, model, output = generate_analysis(prompt)
     item = BusinessAnalysis(
         reporting_week_id=week.id,

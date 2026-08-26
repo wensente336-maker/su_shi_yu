@@ -6,7 +6,16 @@ from typing import Any
 from app.core.config import settings
 
 
-def build_analysis_prompt(structured_data: dict[str, Any], report_content: str) -> str:
+def build_analysis_prompt(structured_data: dict[str, Any], report_content: str, previous_week_report: str | None = None) -> str:
+    previous_context = ""
+    if previous_week_report:
+        previous_context = f"""
+
+## 上周真实周报背景（仅作背景）
+{previous_week_report}
+
+上周周报不得作为本周业绩变化的事实依据；仅可用于识别延续性事项、待跟进风险或需要进一步核实的假设。
+"""
     return f"""你是企业经营分析助手。请严格依据以下事实数据和周报上下文，输出：
 1. 本周核心经营结论；2. 数据变化的可能原因（必须标注为事实或推断）；3. 风险与待核实事项；4. 下周建议行动。
 不得编造未提供的指标、客户事实或因果关系；不确定时明确说明信息不足。
@@ -16,7 +25,7 @@ def build_analysis_prompt(structured_data: dict[str, Any], report_content: str) 
 
 ## 周报上下文（只读快照）
 {report_content}
-"""
+{previous_context}"""
 
 
 def generate_analysis(prompt: str) -> tuple[str, str | None, str | None]:
