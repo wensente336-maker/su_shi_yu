@@ -22,6 +22,35 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
     approved = db.scalar(select(BusinessAnalysis).where(BusinessAnalysis.reporting_week_id == week.id, BusinessAnalysis.status == "review_approved").order_by(BusinessAnalysis.reviewed_at.desc()))
     latest = approved or db.scalar(select(BusinessAnalysis).where(BusinessAnalysis.reporting_week_id == week.id).order_by(BusinessAnalysis.generated_at.desc()))
     snapshot = db.scalar(select(ReportSnapshot).where(ReportSnapshot.reporting_week_id == week.id).order_by(ReportSnapshot.retrieved_at.desc()))
+    teams: dict[str, dict[str, float]] = {}
+    people: dict[str, dict[str, float | str]] = {}
+    for submission in submissions:
+        values = submission.values
+        if submission.schema.code != "sales-weekly-v1":
+            continue
+        team = str(values.get("sales_team") or "未分组")
+        person = str(values.get("sales_person") or submission.employee.name)
+        amount = float(values.get("sales_amount") or 0)
+        customers = float(values.get("signed_customers") or 0)
+        teams.setdefault(team, {"sales_amount": 0.0, "signed_customers": 0.0})
+        teams[team]["sales_amount"] += amount
+        teams[team]["signed_customers"] += customers
+        people.setdefault(person, {"name": person, "sales_team": team, "sales_amount": 0.0, "signed_customers": 0.0})
+        people[person]["sales_amount"] = float(people[person]["sales_amount"]) + amount
+        people[person]["signed_customers"] = float(people[person]["signed_customers"]) + customers
+    team_performance = [{"name": name, **values} for name, values in teams.items()]
+    team_performance.sort(key=lambda item: item["sales_amount"], reverse=True)
+    sales_ranking = list(people.values())
+    sales_ranking.sort(key=lambda item: float(item["sales_amount"]), reverse=True)
+
+    recent_weeks = list(reversed(db.scalars(select(ReportingWeek).order_by(ReportingWeek.week_start.desc()).limit(8)).all()))
+    recent_ids = [item.id for item in recent_weeks]
+    recent_submissions = db.scalars(select(FormSubmission).where(FormSubmission.reporting_week_id.in_(recent_ids))).all() if recent_ids else []
+    by_week: dict[int, dict[str, float]] = {item.id: {"sales_amount": 0.0, "cash_inflow": 0.0} for item in recent_weeks}
+    for submission in recent_submissions:
+        by_week[submission.reporting_week_id]["sales_amount"] += float(submission.values.get("sales_amount") or 0)
+        by_week[submission.reporting_week_id]["cash_inflow"] += float(submission.values.get("cash_inflow") or 0)
+    trend = [{"label": item.week_start.strftime("%m/%d"), **by_week[item.id]} for item in recent_weeks]
     return {
         "title": "深圳盈进经营数据中心",
         "week": {"id": week.id, "week_start": week.week_start, "week_end": week.week_end, "status": week.status},
@@ -34,6 +63,11 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
         ],
         "submission_count": len(submissions),
         "collection": {"complete": not missing_forms, "required_form_count": len(required_forms), "submitted_form_count": len(submitted_form_codes), "missing_forms": missing_forms},
+        "source_status": [{"name": form.name, "kind": "form", "complete": form.code in submitted_form_codes} for form in required_forms] + [{"name": "周报快照", "kind": "report", "complete": snapshot is not None}],
+        "team_performance": team_performance,
+        "sales_ranking": sales_ranking,
+        "trend": trend,
+        "targets": {"configured": False, "message": "尚未配置团队周度目标"},
         "report_snapshot": {"id": snapshot.id, "source_kind": snapshot.source_kind, "retrieved_at": snapshot.retrieved_at} if snapshot else None,
         "analysis": {"id": latest.id, "status": latest.status, "output": latest.output, "review_comment": latest.review_comment} if latest else None,
     }

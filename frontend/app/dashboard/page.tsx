@@ -1,41 +1,20 @@
 "use client";
-
-import { useEffect, useState } from "react";
-
-type Overview = {
-  title: string;
-  week: { week_start: string; week_end: string };
-  metrics: { key: string; label: string; value: number; unit: string }[];
-  submission_count: number;
-  collection: { complete: boolean; required_form_count: number; submitted_form_count: number; missing_forms: string[] };
-  analysis: { status: string; output?: string; review_comment?: string } | null;
-  report_snapshot: { source_kind: string } | null;
-};
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100";
-
-export default function DashboardPage() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch(`${apiBase}/api/v1/dashboard/overview`).then(async (response) => response.ok ? response.json() : Promise.reject()).then(setOverview).catch(() => setError("无法加载经营数据中心，请确认具备管理权限且后端服务可用。"));
-  }, []);
-
-  if (error) return <main style={{ fontFamily: "system-ui, sans-serif", margin: "3rem auto", maxWidth: 900, padding: "0 1rem" }}><h1>深圳盈进经营数据中心</h1><p>{error}</p></main>;
-  if (!overview) return <main style={{ fontFamily: "system-ui, sans-serif", margin: "3rem auto", maxWidth: 900, padding: "0 1rem" }}>正在加载深圳盈进经营数据中心…</main>;
-
-  return <main style={{ fontFamily: "system-ui, sans-serif", margin: "3rem auto", maxWidth: 900, padding: "0 1rem" }}>
-    <h1>{overview.title}</h1>
-    <p>统计周期：{overview.week.week_start} 至 {overview.week.week_end}</p>
-    <section style={{ padding: "1rem", borderRadius: 10, background: overview.collection.complete ? "#ecfdf3" : "#fff8e8" }}>
-      <strong>{overview.collection.complete ? "数据已收齐" : "等待数据收齐"}</strong>
-      <p>已收齐 {overview.collection.submitted_form_count}/{overview.collection.required_form_count} 类经营表单。{overview.collection.missing_forms.length ? `待提交：${overview.collection.missing_forms.join("、")}` : ""}</p>
-    </section>
-    <section style={{ margin: "1.5rem 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-      {overview.metrics.map((metric) => <div key={metric.key} style={{ background: "#f4f7fb", padding: 16, borderRadius: 10 }}><small>{metric.label}</small><br /><strong>{metric.value.toLocaleString("zh-CN")} {metric.unit}</strong></div>)}
-    </section>
-    <p>已提交表单：{overview.submission_count} 份；周报来源：{overview.report_snapshot?.source_kind ?? "未读取"}</p>
-    <section style={{ padding: "1rem", border: "1px solid #e5e7eb", borderRadius: 10 }}><h2>经营分析</h2><p>状态：{overview.analysis?.status ?? "未生成"}</p><p style={{ whiteSpace: "pre-wrap" }}>{overview.analysis?.output ?? "数据收齐并生成、审核分析后将在此呈现。"}</p></section>
-  </main>;
-}
+import { useEffect, useMemo, useState } from "react";
+import styles from "./page.module.css";
+type Metric={key:string;label:string;value:number;unit:string}; type Team={name:string;sales_amount:number;signed_customers:number}; type Person={name:string;sales_team:string;sales_amount:number;signed_customers:number}; type Trend={label:string;sales_amount:number;cash_inflow:number};
+type Overview={title:string;week:{week_start:string;week_end:string};metrics:Metric[];submission_count:number;collection:{complete:boolean;required_form_count:number;submitted_form_count:number;missing_forms:string[]};source_status:{name:string;complete:boolean}[];team_performance:Team[];sales_ranking:Person[];trend:Trend[];targets:{configured:boolean;message:string};analysis:{status:string;output?:string;review_comment?:string}|null};
+const apiBase=process.env.NEXT_PUBLIC_API_BASE_URL??"http://localhost:8100"; const money=(v:number)=>v>=10000?`¥${(v/10000).toFixed(1)}万`:`¥${v.toLocaleString("zh-CN")}`;
+function LineChart({data}:{data:Trend[]}){const max=Math.max(...data.map(x=>Math.max(x.sales_amount,x.cash_inflow)),1);const points=(key:"sales_amount"|"cash_inflow")=>data.map((x,i)=>`${data.length===1?50:8+i*84/(data.length-1)},${88-x[key]/max*72}`).join(" ");return <div className={styles.lineWrap}><svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="0" x2="100" y1="88" y2="88" className={styles.gridLine}/><line x1="0" x2="100" y1="52" y2="52" className={styles.gridLine}/><line x1="0" x2="100" y1="16" y2="16" className={styles.gridLine}/><polyline points={points("cash_inflow")} className={styles.cashLine}/><polyline points={points("sales_amount")} className={styles.salesLine}/></svg><div className={styles.chartLabels}>{data.map(x=><span key={x.label}>{x.label}</span>)}</div></div>}
+export default function DashboardPage(){const [overview,setOverview]=useState<Overview|null>(null);const [error,setError]=useState("");useEffect(()=>{fetch(`${apiBase}/api/v1/dashboard/overview`).then(r=>r.ok?r.json():Promise.reject()).then(setOverview).catch(()=>setError("无法加载经营数据中心，请确认具备管理权限且后端服务可用。"))},[]);const max=useMemo(()=>Math.max(...(overview?.team_performance.map(x=>x.sales_amount)??[]),1),[overview]);if(error)return <main className={styles.page}><p>{error}</p></main>;if(!overview)return <main className={styles.page}><p>正在加载深圳盈进经营数据中心…</p></main>;return <main className={styles.page}><div className={styles.shell}>
+<header className={styles.hero}><div><p className={styles.kicker}>SHENZHEN YINGJIN · WEEKLY COMMAND</p><h1>{overview.title}</h1><p>{overview.week.week_start} 至 {overview.week.week_end}</p></div><div className={`${styles.readiness} ${overview.collection.complete?styles.ready:styles.pending}`}><b>{overview.collection.complete?"数据已收齐":"等待收齐"}</b><span>{overview.collection.submitted_form_count}/{overview.collection.required_form_count} 类表单已提交</span></div></header>
+{!overview.collection.complete&&<section className={styles.warning}><strong>数据尚未收齐</strong><span>待提交：{overview.collection.missing_forms.join("、")}</span></section>}
+{!overview.collection.complete?<section className={styles.gate}><p>RESULTS LOCKED</p><h2>等待全部经营数据收齐</h2><span>销售周度经营数据与财务周度经营数据提交完成后，将自动解锁本周经营结果、团队 PK、趋势和 AI 分析。</span><div className={styles.sources}>{overview.source_status.map(s=><div key={s.name}><i className={s.complete?styles.done:styles.todo}/><span>{s.name}</span><b>{s.complete?"已完成":"待提交"}</b></div>)}</div></section>:<>
+<section className={styles.metrics}>{overview.metrics.map((m,i)=><article className={`${styles.metric} ${i<2?styles.hotMetric:""}`} key={m.key}><p>{m.label}</p><strong>{m.unit==="元"?money(m.value):`${m.value.toLocaleString("zh-CN")} ${m.unit}`}</strong><span>{i<2?"本周核心指标":"本周累计"}</span></article>)}</section>
+<section className={styles.grid}>
+<article className={`${styles.panel} ${styles.trendPanel}`}><div className={styles.panelHead}><div><p>WEEKLY TREND</p><h2>销售额与回款趋势</h2></div><div className={styles.legend}><span><i className={styles.redDot}/>销售额</span><span><i className={styles.yellowDot}/>回款</span></div></div>{overview.trend.length?<LineChart data={overview.trend}/>:<p className={styles.empty}>尚无历史数据</p>}</article>
+<article className={`${styles.panel} ${styles.pkPanel}`}><div className={styles.panelHead}><div><p>TEAM BATTLE</p><h2>Sales Team PK</h2></div><span className={styles.pkBadge}>PK</span></div>{overview.team_performance.length?<div className={styles.bars}>{overview.team_performance.map((t,i)=><div className={styles.barRow} key={t.name}><div className={styles.barName}><b>#{i+1}</b><span>{t.name}</span><strong>{money(t.sales_amount)}</strong></div><div className={styles.track}><div className={styles.bar} style={{width:`${t.sales_amount/max*100}%`}}/></div><small>成交 {t.signed_customers} 个</small></div>)}</div>:<p className={styles.empty}>收集销售数据后显示团队 PK</p>}</article>
+<article className={`${styles.panel} ${styles.rankPanel}`}><div className={styles.panelHead}><div><p>SALES LEADERBOARD</p><h2>业务人员排行</h2></div><span className={styles.total}>{overview.sales_ranking.length} 人</span></div>{overview.sales_ranking.length?<ol className={styles.ranking}>{overview.sales_ranking.map((p,i)=><li key={p.name}><b className={`${styles.rank} ${i<3?styles[`rank${i+1}`]:""}`}>{i+1}</b><div><strong>{p.name}</strong><span>{p.sales_team}</span></div><em>{money(p.sales_amount)}</em></li>)}</ol>:<p className={styles.empty}>收集销售数据后显示个人排行</p>}</article>
+<article className={`${styles.panel} ${styles.targetPanel}`}><div className={styles.panelHead}><div><p>GOAL PROGRESS</p><h2>团队目标进度</h2></div><span className={styles.targetTag}>待配置</span></div><div className={styles.targetEmpty}><div className={styles.progress}><span/></div><p>{overview.targets.message}</p><small>配置周度目标后，将显示达成进度与未达标预警。</small></div></article>
+<article className={`${styles.panel} ${styles.analysisPanel}`}><div className={styles.panelHead}><div><p>AI BUSINESS REVIEW</p><h2>经营分析与行动</h2></div><span className={styles.reviewTag}>{overview.analysis?.status??"未生成"}</span></div><div className={styles.analysisText}>{overview.analysis?.output??"数据收齐并完成 AI 分析、人工审核后，将在这里呈现结论、风险和下周行动。"}</div>{overview.analysis?.review_comment&&<p className={styles.reviewComment}>审核意见：{overview.analysis.review_comment}</p>}</article>
+<article className={`${styles.panel} ${styles.sourcePanel}`}><div className={styles.panelHead}><div><p>DATA SOURCE</p><h2>数据收集状态</h2></div><span className={styles.total}>{overview.submission_count} 份</span></div><div className={styles.sources}>{overview.source_status.map(s=><div key={s.name}><i className={s.complete?styles.done:styles.todo}/><span>{s.name}</span><b>{s.complete?"已完成":"待提交"}</b></div>)}</div></article>
+</section></>}</div></main>}
