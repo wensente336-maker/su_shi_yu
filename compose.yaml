@@ -18,6 +18,8 @@ services:
     build: ./backend
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ${REPORT_SOURCE_HOST_PATH:-/Users/yucai/.hermes/profiles/tang_yu_heng/workspace}:/report-source:ro
     ports:
       - "${API_PORT:-8100}:8000"
     depends_on:

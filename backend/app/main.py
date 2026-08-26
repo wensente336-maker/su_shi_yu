@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routes import router as api_v1_router
+from app.api.v1.analysis_routes import router as analysis_router
 from app.db import Base, SessionLocal, engine
 from app.db.seed import seed_reference_data
 
@@ -31,6 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(api_v1_router)
+app.include_router(analysis_router)
 
 
 @app.get("/health", tags=["system"])

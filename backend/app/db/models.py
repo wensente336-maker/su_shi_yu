@@ -89,3 +89,36 @@ class FormSubmission(Base):
     schema: Mapped[FormSchema] = relationship()
     reporting_week: Mapped[ReportingWeek] = relationship()
     employee: Mapped[Employee] = relationship()
+
+
+class ReportSnapshot(Base):
+    __tablename__ = "report_snapshots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
+    source_kind: Mapped[str] = mapped_column(String(30))
+    source_paths: Mapped[list[str]] = mapped_column(JSON, default=list)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    source_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reporting_week: Mapped[ReportingWeek] = relationship()
+
+
+class BusinessAnalysis(Base):
+    __tablename__ = "business_analyses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
+    report_snapshot_id: Mapped[int] = mapped_column(ForeignKey("report_snapshots.id"))
+    structured_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    prompt: Mapped[str] = mapped_column(Text)
+    output: Mapped[str | None] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(50))
+    model: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(40), default="pending_model_configuration")
+    reviewer_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"))
+    review_comment: Mapped[str | None] = mapped_column(Text)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reporting_week: Mapped[ReportingWeek] = relationship(foreign_keys=[reporting_week_id])
+    report_snapshot: Mapped[ReportSnapshot] = relationship()
+    reviewer: Mapped[Employee | None] = relationship(foreign_keys=[reviewer_id])

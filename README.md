@@ -22,6 +22,16 @@
 - `GET /api/v1/form-schemas`：当前身份可用的表单。
 - `GET /api/v1/form-schemas/sales-weekly-v1`：动态销售表单结构。
 
+## 周报快照与 AI 分析
+
+`api` 容器只读挂载 `tang_yu_heng` 的工作区到 `/report-source`。读取器优先读取命名匹配统计周的 Markdown；不存在时仅读取 `daily_reports/YYYY-MM-DD.json`，并以 `weekly_pipeline_runs` 元数据补充覆盖情况。快照写入本项目数据库，不会向来源 Profile 写入文件。
+
+- `POST /api/v1/report-snapshots`：生成当前周的只读来源快照。
+- `POST /api/v1/business-analyses`：合并快照与结构化提交数据；默认仅保存待生成记录。
+- `POST /api/v1/business-analyses/{id}/review`：人工审核通过或驳回。
+
+配置 `AI_PROVIDER=openai` 和未提交到 Git 的 `OPENAI_API_KEY` 后，分析接口才会调用模型；未配置时不会产生伪造结论。
+
 ## 目录
 
 - `frontend/`：Next.js 响应式 Web 应用。
