@@ -71,3 +71,21 @@ class FormField(Base):
     position: Mapped[int] = mapped_column(Integer)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     schema: Mapped[FormSchema] = relationship(back_populates="fields")
+
+
+class FormSubmission(Base):
+    __tablename__ = "form_submissions"
+    __table_args__ = (
+        UniqueConstraint("schema_id", "reporting_week_id", "employee_id", name="uq_submission_scope"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    schema_id: Mapped[int] = mapped_column(ForeignKey("form_schemas.id"), index=True)
+    reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    values: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="submitted")
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    schema: Mapped[FormSchema] = relationship()
+    reporting_week: Mapped[ReportingWeek] = relationship()
+    employee: Mapped[Employee] = relationship()
