@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.v1.dependencies import require_roles
+from app.api.v1.dependencies import require_cloudbase_scheduler_token, require_roles
 from app.db import get_db
 from app.db.models import Employee, ReportingWeek, WecomDelivery
 from app.services.dashboard import build_overview
 from app.services.wecom import deliver_weekly_summary
+from app.services.weekly_run import run_scheduled_weekly_cycle
 
 router = APIRouter(prefix="/api/v1")
 
@@ -41,3 +42,13 @@ def send_weekly_summary(db: Session = Depends(get_db), _: Employee = Depends(req
 def list_deliveries(db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> list[dict]:
     items = db.scalars(select(WecomDelivery).order_by(WecomDelivery.created_at.desc())).all()
     return [{"id": item.id, "reporting_week_id": item.reporting_week_id, "trigger": item.trigger, "status": item.status, "message": item.message, "response_code": item.response_code, "created_at": item.created_at} for item in items]
+
+
+@router.post("/internal/cloudbase/weekly-cycle")
+def run_cloudbase_weekly_cycle(
+    db: Session = Depends(get_db),
+    _: None = Depends(require_cloudbase_scheduler_token),
+) -> dict:
+    """Entry point for the CloudBase Saturday timer; weekly delivery is idempotent."""
+    run_scheduled_weekly_cycle(db)
+    return {"status": "completed"}

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     hermes_agent_clock_skew_seconds: int = 300
     hermes_agent_lease_seconds: int = 240
     hermes_agent_max_attempts: int = 3
+    cloudbase_scheduler_token: str | None = None
     wecom_push_enabled: bool = False
     wecom_webhook_url: str | None = None
     wecom_aibot_enabled: bool = False

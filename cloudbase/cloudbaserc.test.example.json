@@ -1,0 +1,20 @@
+{
+  "envId": "REPLACE_WITH_CLOUDBASE_ENV_ID",
+  "functionRoot": "./cloudfunctions",
+  "functions": [
+    {
+      "name": "weekly-cycle",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 20,
+      "memorySize": 256,
+      "triggers": [
+        {
+          "name": "saturday-ten-am",
+          "type": "timer",
+          "config": "0 0 10 * * 6 *"
+        }
+      ]
+    }
+  ]
+}

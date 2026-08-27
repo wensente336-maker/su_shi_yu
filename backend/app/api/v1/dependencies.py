@@ -41,3 +41,14 @@ def require_roles(*roles: str):
         return employee
 
     return dependency
+
+
+def require_cloudbase_scheduler_token(
+    scheduler_token: str | None = Header(default=None, alias="X-CloudBase-Scheduler-Token"),
+) -> None:
+    """Authenticate the CloudBase timer function without granting it user privileges."""
+    expected = settings.cloudbase_scheduler_token
+    if not expected:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="未配置 CloudBase 定时任务密钥")
+    if not scheduler_token or not hmac.compare_digest(scheduler_token, expected):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="CloudBase 定时任务凭证无效")
