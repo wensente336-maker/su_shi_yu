@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.v1.dependencies import get_current_employee, require_roles
 from app.db import get_db
-from app.db.models import Department, Employee, FormField, FormSchema, FormSubmission, PersonalMonthlyTarget, ReportingWeek
+from app.db.models import Department, Employee, FormField, FormSchema, FormSubmission, PersonalMonthlyTarget, ReportingWeek, SalesPerson
 
 router = APIRouter(prefix="/api/v1")
 
@@ -31,12 +31,24 @@ class PersonalMonthlyTargetUpsert(BaseModel):
     signed_customers_target: float | None = None
 
 
+class SalesPersonUpsert(BaseModel):
+    name: str
+    sales_team: str
+
+
+SALES_TEAMS = {"海外留学", "香港保险", "身份规划"}
+
+
 def _parse_target_month(value: str) -> date:
     try:
         target_month = date.fromisoformat(f"{value}-01")
     except ValueError as error:
         raise HTTPException(status_code=422, detail="月份格式必须为 YYYY-MM") from error
     return target_month
+
+
+def _normalized_name(value: str) -> str:
+    return " ".join(value.strip().split())
 
 
 @router.get("/me")
@@ -64,6 +76,31 @@ def list_weeks(db: Session = Depends(get_db)) -> list[dict]:
     return [{"id": week.id, "week_start": week.week_start, "week_end": week.week_end, "status": week.status, "is_current": week.is_current} for week in weeks]
 
 
+@router.get("/sales-people")
+def list_sales_people(db: Session = Depends(get_db), _: Employee = Depends(get_current_employee)) -> list[dict]:
+    items = db.scalars(select(SalesPerson).where(SalesPerson.is_active.is_(True)).order_by(SalesPerson.name)).all()
+    return [{"id": item.id, "name": item.name, "sales_team": item.sales_team} for item in items]
+
+
+@router.post("/sales-people", status_code=201)
+def upsert_sales_person(payload: SalesPersonUpsert, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
+    name = _normalized_name(payload.name)
+    if not name or len(name) > 100:
+        raise HTTPException(status_code=422, detail="业务人员姓名不能为空且不能超过100个字符")
+    if payload.sales_team not in SALES_TEAMS:
+        raise HTTPException(status_code=422, detail="业务团队必须从预设团队中选择")
+    item = db.scalar(select(SalesPerson).where(SalesPerson.name == name))
+    if item is None:
+        item = SalesPerson(name=name, sales_team=payload.sales_team)
+        db.add(item)
+    else:
+        item.sales_team = payload.sales_team
+        item.is_active = True
+    db.commit()
+    db.refresh(item)
+    return {"id": item.id, "name": item.name, "sales_team": item.sales_team}
+
+
 @router.get("/personal-monthly-targets")
 def list_personal_monthly_targets(target_month: str, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> list[dict]:
     month = _parse_target_month(target_month)
@@ -88,9 +125,11 @@ def list_personal_monthly_targets(target_month: str, db: Session = Depends(get_d
 @router.post("/personal-monthly-targets", status_code=201)
 def upsert_personal_monthly_target(payload: PersonalMonthlyTargetUpsert, db: Session = Depends(get_db), employee: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
     month = _parse_target_month(payload.target_month)
-    sales_person = payload.sales_person.strip()
+    sales_person = _normalized_name(payload.sales_person)
     if not sales_person or len(sales_person) > 100:
         raise HTTPException(status_code=422, detail="姓名不能为空且不能超过100个字符")
+    if db.scalar(select(SalesPerson.id).where(SalesPerson.name == sales_person, SalesPerson.is_active.is_(True))) is None:
+        raise HTTPException(status_code=422, detail="请先在业务人员名单中创建该人员，再配置月度目标")
     if payload.sales_amount_target <= 0:
         raise HTTPException(status_code=422, detail="月度销售额目标必须大于 0")
     if payload.signed_customers_target is not None and payload.signed_customers_target < 0:
@@ -214,6 +253,24 @@ def create_or_update_submission(schema_code: str, payload: SubmissionCreate, db:
     if week.status != "open":
         raise HTTPException(status_code=409, detail="当前统计周已关闭，不能录入")
     cleaned_values = _validate_values(schema.fields, payload.values)
+    if schema.code == "sales-weekly-v1":
+        sales_person = _normalized_name(str(cleaned_values.get("sales_person") or ""))
+        cleaned_values["sales_person"] = sales_person
+        sales_person_record = db.scalar(select(SalesPerson).where(SalesPerson.name == sales_person, SalesPerson.is_active.is_(True)))
+        if sales_person_record is None:
+            raise HTTPException(status_code=422, detail="业务人员不在统一名单中，请选择已配置的业务人员")
+        if cleaned_values.get("sales_team") != sales_person_record.sales_team:
+            raise HTTPException(status_code=422, detail="Sales Team 必须与业务人员名单中的团队归属一致")
+        same_week_submissions = db.scalars(
+            select(FormSubmission)
+            .where(
+                FormSubmission.schema_id == schema.id,
+                FormSubmission.reporting_week_id == week.id,
+                FormSubmission.employee_id != employee.id,
+            )
+        ).all()
+        if any(_normalized_name(str(item.values.get("sales_person") or "")) == sales_person for item in same_week_submissions):
+            raise HTTPException(status_code=409, detail="该业务人员本周已有填报记录，请勿重复提交")
     submission = db.scalar(select(FormSubmission).where(FormSubmission.schema_id == schema.id, FormSubmission.reporting_week_id == week.id, FormSubmission.employee_id == employee.id))
     if submission is None:
         submission = FormSubmission(schema_id=schema.id, reporting_week_id=week.id, employee_id=employee.id, values=cleaned_values)

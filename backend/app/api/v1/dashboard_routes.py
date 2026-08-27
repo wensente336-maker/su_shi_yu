@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,8 +21,14 @@ def current_week(db: Session, week_id: int | None) -> ReportingWeek:
 
 
 @router.get("/dashboard/overview")
-def dashboard_overview(reporting_week_id: int | None = None, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
-    return build_overview(db, current_week(db, reporting_week_id))
+def dashboard_overview(reporting_week_id: int | None = None, target_month: str | None = None, db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
+    month = None
+    if target_month:
+        try:
+            month = date.fromisoformat(f"{target_month}-01")
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail="目标月份格式必须为 YYYY-MM") from error
+    return build_overview(db, current_week(db, reporting_week_id), month)
 
 
 @router.post("/wecom-deliveries/weekly", status_code=201)

@@ -10,7 +10,13 @@ from app.db.models import BusinessAnalysis, FormSchema, FormSubmission, Personal
 from app.services.completion import collection_status
 
 
-def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
+def month_bounds(target_month: date) -> tuple[date, date]:
+    """Return the inclusive calendar-month start and exclusive next-month start."""
+    month_start = date(target_month.year, target_month.month, 1)
+    return month_start, date(month_start.year + (month_start.month == 12), (month_start.month % 12) + 1, 1)
+
+
+def build_overview(db: Session, week: ReportingWeek, target_month: date | None = None) -> dict[str, Any]:
     submissions = db.scalars(select(FormSubmission).where(FormSubmission.reporting_week_id == week.id).options(selectinload(FormSubmission.schema))).all()
     required_forms = db.scalars(select(FormSchema).where(FormSchema.is_active.is_(True))).all()
     submitted_form_codes = {item.schema.code for item in submissions}
@@ -49,8 +55,15 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
         people[person]["signed_customers"] = float(people[person]["signed_customers"]) + customers
     team_performance = [{"name": name, **values} for name, values in teams.items()]
     team_performance.sort(key=lambda item: item["sales_amount"], reverse=True)
-    target_month = date(week.week_end.year, week.week_end.month, 1)
-    next_month = date(target_month.year + (target_month.month == 12), (target_month.month % 12) + 1, 1)
+    target_month = target_month or date(week.week_end.year, week.week_end.month, 1)
+    target_month, next_month = month_bounds(target_month)
+    simulation_week_exists = db.scalar(
+        select(ReportingWeek.id).where(
+            ReportingWeek.week_end >= target_month,
+            ReportingWeek.week_end < next_month,
+            ReportingWeek.status == "simulation",
+        )
+    ) is not None
     monthly_submissions = db.scalars(
         select(FormSubmission)
         .join(FormSchema)
@@ -59,6 +72,8 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
             FormSchema.code == "sales-weekly-v1",
             ReportingWeek.week_end >= target_month,
             ReportingWeek.week_end < next_month,
+            ReportingWeek.status != "simulation",
+            FormSubmission.status == "submitted",
         )
         .options(selectinload(FormSubmission.reporting_week))
     ).all()
@@ -133,6 +148,7 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
             "target_month": target_month.strftime("%Y-%m"),
             "configured": bool(target_items),
             "message": "尚未配置个人月度目标" if not target_items else "已按个人月度目标计算当月累计完成率",
+            "source_note": "模拟统计周已自动排除，未计入月度完成率。" if simulation_week_exists else "按统计周结束日所属月份累计，仅计入有效销售填报。",
             "items": target_items,
         },
         "report_snapshot": {"id": snapshot.id, "source_kind": snapshot.source_kind, "retrieved_at": snapshot.retrieved_at} if snapshot else None,

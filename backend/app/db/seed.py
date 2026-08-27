@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Department, Employee, FormField, FormSchema, ReportingWeek
+from app.db.models import Department, Employee, FormField, FormSchema, FormSubmission, ReportingWeek, SalesPerson
 
 
 def seed_reference_data(db: Session) -> None:
@@ -39,6 +39,7 @@ def seed_reference_data(db: Session) -> None:
         db.commit()
 
     _sync_sales_fields(db)
+    _sync_sales_people(db)
     _normalize_current_week(db)
 
 
@@ -78,3 +79,27 @@ def _sync_sales_fields(db: Session) -> None:
         finance_form.version = max(finance_form.version, 2)
     form.version = max(form.version, 3)
     db.commit()
+
+
+def _sync_sales_people(db: Session) -> None:
+    """Backfill the controlled business-person list from prior sales submissions."""
+    sales_form = db.scalar(select(FormSchema).where(FormSchema.code == "sales-weekly-v1"))
+    if sales_form is None:
+        return
+    valid_teams = {"海外留学", "香港保险", "身份规划"}
+    submissions = db.scalars(
+        select(FormSubmission)
+        .where(FormSubmission.schema_id == sales_form.id)
+        .order_by(FormSubmission.submitted_at.desc())
+    ).all()
+    existing_names = {item.name for item in db.scalars(select(SalesPerson)).all()}
+    additions = []
+    for submission in submissions:
+        name = " ".join(str(submission.values.get("sales_person") or "").strip().split())
+        team = str(submission.values.get("sales_team") or "")
+        if name and team in valid_teams and name not in existing_names:
+            additions.append(SalesPerson(name=name, sales_team=team))
+            existing_names.add(name)
+    if additions:
+        db.add_all(additions)
+        db.commit()

@@ -32,6 +32,16 @@ class Employee(Base):
     department: Mapped[Department | None] = relationship(back_populates="employees")
 
 
+class SalesPerson(Base):
+    __tablename__ = "sales_people"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    sales_team: Mapped[str] = mapped_column(String(100))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class ReportingWeek(Base):
     __tablename__ = "reporting_weeks"
     __table_args__ = (UniqueConstraint("week_start", "week_end", name="uq_reporting_week_dates"),)
