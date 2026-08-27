@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import BusinessAnalysis, FormSchema, FormSubmission, ReportSnapshot, ReportingWeek, TeamWeeklyTarget
+from app.db.models import BusinessAnalysis, FormSchema, FormSubmission, PersonalMonthlyTarget, ReportSnapshot, ReportingWeek
 from app.services.completion import collection_status
 
 
@@ -48,19 +49,40 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
         people[person]["signed_customers"] = float(people[person]["signed_customers"]) + customers
     team_performance = [{"name": name, **values} for name, values in teams.items()]
     team_performance.sort(key=lambda item: item["sales_amount"], reverse=True)
-    targets_by_team = {
-        item.sales_team: item
-        for item in db.scalars(select(TeamWeeklyTarget).where(TeamWeeklyTarget.reporting_week_id == week.id)).all()
-    }
-    target_teams = ("海外留学", "香港保险", "身份规划")
+    target_month = date(week.week_end.year, week.week_end.month, 1)
+    next_month = date(target_month.year + (target_month.month == 12), (target_month.month % 12) + 1, 1)
+    monthly_submissions = db.scalars(
+        select(FormSubmission)
+        .join(FormSchema)
+        .join(ReportingWeek)
+        .where(
+            FormSchema.code == "sales-weekly-v1",
+            ReportingWeek.week_end >= target_month,
+            ReportingWeek.week_end < next_month,
+        )
+        .options(selectinload(FormSubmission.reporting_week))
+    ).all()
+    monthly_people: dict[str, dict[str, float | str]] = {}
+    for submission in monthly_submissions:
+        values = submission.values
+        person = str(values.get("sales_person") or submission.employee.name)
+        monthly_people.setdefault(person, {"name": person, "sales_team": "未分组", "sales_amount": 0.0, "signed_customers": 0.0})
+        monthly_people[person]["sales_team"] = str(values.get("sales_team") or "未分组")
+        monthly_people[person]["sales_amount"] = float(monthly_people[person]["sales_amount"]) + float(values.get("sales_amount") or 0)
+        monthly_people[person]["signed_customers"] = float(monthly_people[person]["signed_customers"]) + float(values.get("signed_customers") or 0)
+    monthly_targets = db.scalars(
+        select(PersonalMonthlyTarget)
+        .where(PersonalMonthlyTarget.target_month == target_month)
+        .order_by(PersonalMonthlyTarget.sales_person)
+    ).all()
     target_items = []
-    for team_name in target_teams:
-        actual = teams.get(team_name, {"sales_amount": 0.0, "signed_customers": 0.0})
-        target = targets_by_team.get(team_name)
-        sales_target = float(target.sales_amount_target) if target else None
-        customer_target = float(target.signed_customers_target) if target and target.signed_customers_target is not None else None
+    for target in monthly_targets:
+        actual = monthly_people.get(target.sales_person, {"sales_team": "未分组", "sales_amount": 0.0, "signed_customers": 0.0})
+        sales_target = float(target.sales_amount_target)
+        customer_target = float(target.signed_customers_target) if target.signed_customers_target is not None else None
         target_items.append({
-            "name": team_name,
+            "name": target.sales_person,
+            "sales_team": actual["sales_team"],
             "sales_amount": actual["sales_amount"],
             "signed_customers": actual["signed_customers"],
             "sales_amount_target": sales_target,
@@ -68,6 +90,7 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
             "sales_completion": actual["sales_amount"] / sales_target if sales_target else None,
             "signed_customers_completion": actual["signed_customers"] / customer_target if customer_target else None,
         })
+    target_items.sort(key=lambda item: (item["sales_completion"] is None, -(item["sales_completion"] or 0)))
     sales_ranking = list(people.values())
     sales_ranking.sort(key=lambda item: float(item["sales_amount"]), reverse=True)
 
@@ -106,9 +129,10 @@ def build_overview(db: Session, week: ReportingWeek) -> dict[str, Any]:
         "team_performance": team_performance,
         "sales_ranking": sales_ranking,
         "trend": trend,
-        "targets": {
-            "configured": all(item["sales_amount_target"] is not None for item in target_items),
-            "message": "尚未配置团队周度目标" if not any(item["sales_amount_target"] is not None for item in target_items) else "部分团队目标尚未配置",
+        "personal_goals": {
+            "target_month": target_month.strftime("%Y-%m"),
+            "configured": bool(target_items),
+            "message": "尚未配置个人月度目标" if not target_items else "已按个人月度目标计算当月累计完成率",
             "items": target_items,
         },
         "report_snapshot": {"id": snapshot.id, "source_kind": snapshot.source_kind, "retrieved_at": snapshot.retrieved_at} if snapshot else None,
