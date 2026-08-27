@@ -93,6 +93,7 @@ class FormSubmission(Base):
     schema_id: Mapped[int] = mapped_column(ForeignKey("form_schemas.id"), index=True)
     reporting_week_id: Mapped[int] = mapped_column(ForeignKey("reporting_weeks.id"), index=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    subject_key: Mapped[str] = mapped_column(String(180), index=True)
     values: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(20), default="submitted")
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

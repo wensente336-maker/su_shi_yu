@@ -33,7 +33,7 @@ export default function TargetsPage() {
       fetch(`${apiBase}/api/v1/reporting-weeks/current`).then((response) => response.json()),
       loadSalesPeople(),
     ])
-      .then(([week]) => setMonth((week as Week).week_end.slice(0, 7)))
+      .then(([week]) => setMonth((week as Week).week_start.slice(0, 7)))
       .catch(() => setStatus("无法读取管理配置，请确认服务及管理权限。"));
   }, []);
 

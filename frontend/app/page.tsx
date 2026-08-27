@@ -19,13 +19,14 @@ export default function HomePage() {
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetch(`${apiBase}/api/v1/form-schemas`).then((response) => response.json()), fetch(`${apiBase}/api/v1/reporting-weeks/current`).then((response) => response.json()), fetch(`${apiBase}/api/v1/sales-people`).then((response) => response.json())])
+    const readJson = (response: Response) => response.ok ? response.json() : Promise.reject(new Error("request failed"));
+    Promise.all([fetch(`${apiBase}/api/v1/form-schemas`).then(readJson), fetch(`${apiBase}/api/v1/reporting-weeks/current`).then(readJson), fetch(`${apiBase}/api/v1/sales-people`).then(readJson)])
       .then(([items, currentWeek, people]) => { setSchemas(items); setWeek(currentWeek); setSalesPeople(people); if (items[0]) setSelected(items[0]); setMessage(""); })
       .catch(() => setMessage("无法连接经营数据服务，请确认后端已启动。"));
   }, []);
   useEffect(() => {
     if (!selected) return;
-    fetch(`${apiBase}/api/v1/form-schemas/${selected.code}`).then((response) => response.json()).then((schema) => { setSelected(schema); setValues({}); setIsSuccess(false); });
+    fetch(`${apiBase}/api/v1/form-schemas/${selected.code}`).then((response) => response.ok ? response.json() : Promise.reject(new Error("request failed"))).then((schema) => { setSelected(schema); setValues({}); setIsSuccess(false); }).catch(() => setMessage("无法读取表单配置，请稍后重试。"));
   }, [selected?.code]);
 
   const period = useMemo(() => week ? `${week.week_start} 至 ${week.week_end}` : "正在读取统计周期", [week]);
@@ -34,8 +35,12 @@ export default function HomePage() {
     if (!selected || !week) return;
     const typedValues: Record<string, string | number> = {};
     for (const field of selected.fields ?? []) { const value = values[field.key] ?? ""; typedValues[field.key] = field.type === "currency" || field.type === "number" ? Number(value) : value; }
-    const response = await fetch(`${apiBase}/api/v1/form-schemas/${selected.code}/submissions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reporting_week_id: week.id, values: typedValues }) });
-    const result = await response.json(); setIsSuccess(response.ok); setMessage(response.ok ? "本周数据已保存，可再次提交更新本周数据。" : result.detail ?? "提交失败，请检查后重试。");
+    try {
+      const response = await fetch(`${apiBase}/api/v1/form-schemas/${selected.code}/submissions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reporting_week_id: week.id, values: typedValues }) });
+      const result = await response.json(); setIsSuccess(response.ok); setMessage(response.ok ? "本周数据已保存，可再次提交更新本周数据。" : result.detail ?? "提交失败，请检查后重试。");
+    } catch {
+      setIsSuccess(false); setMessage("无法连接经营数据服务，请稍后重试。");
+    }
   }
 
   return <main className={styles.page}><div className={styles.shell}>

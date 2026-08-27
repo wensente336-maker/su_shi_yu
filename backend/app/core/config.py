@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     database_url: str
     environment: str = "development"
     development_default_user: str = "admin"
+    wecom_auth_proxy_token: str | None = None
     cors_origins: str = "http://localhost:3100"
     report_source_root: str = "/report-source"
     ai_provider: str = "disabled"
@@ -22,8 +23,9 @@ class Settings(BaseSettings):
     wecom_push_weekday: int = 4
     wecom_push_hour: int = 18
     wecom_push_minute: int = 0
-    wecom_allow_preliminary_analysis: bool = True
+    wecom_allow_preliminary_analysis: bool = False
     wecom_catchup_hours: int = 6
+    wecom_push_retry_minutes: int = 15
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

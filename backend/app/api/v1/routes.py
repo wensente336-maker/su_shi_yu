@@ -1,10 +1,12 @@
 from datetime import date, timedelta
+import math
 from numbers import Real
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.v1.dependencies import get_current_employee, require_roles
@@ -158,7 +160,7 @@ def create_week(payload: WeekCreate, db: Session = Depends(get_db), _: Employee 
         raise HTTPException(status_code=422, detail="周结束日期不能早于开始日期")
     if payload.week_start.weekday() != 0 or payload.week_end != payload.week_start + timedelta(days=4):
         raise HTTPException(status_code=422, detail="经营统计周必须为周一至周五")
-    db.query(ReportingWeek).update({ReportingWeek.is_current: False})
+    db.query(ReportingWeek).filter(ReportingWeek.is_current.is_(True)).update({ReportingWeek.is_current: False, ReportingWeek.status: "closed"})
     week = ReportingWeek(week_start=payload.week_start, week_end=payload.week_end, is_current=True)
     db.add(week)
     db.commit()
@@ -211,6 +213,10 @@ def _validate_values(fields: list[FormField], values: dict[str, Any]) -> dict[st
             if not isinstance(value, Real) or isinstance(value, bool):
                 raise HTTPException(status_code=422, detail=f"{field.label}必须为数字")
             numeric_value = float(value)
+            if not math.isfinite(numeric_value):
+                raise HTTPException(status_code=422, detail=f"{field.label}必须为有限数字")
+            if field.config.get("step") == 1 and not numeric_value.is_integer():
+                raise HTTPException(status_code=422, detail=f"{field.label}必须为整数")
             if "min" in field.config and numeric_value < field.config["min"]:
                 raise HTTPException(status_code=422, detail=f"{field.label}不能小于{field.config['min']}")
             cleaned[field.key] = numeric_value
@@ -253,6 +259,7 @@ def create_or_update_submission(schema_code: str, payload: SubmissionCreate, db:
     if week.status != "open":
         raise HTTPException(status_code=409, detail="当前统计周已关闭，不能录入")
     cleaned_values = _validate_values(schema.fields, payload.values)
+    subject_key = f"employee:{employee.id}"
     if schema.code == "sales-weekly-v1":
         sales_person = _normalized_name(str(cleaned_values.get("sales_person") or ""))
         cleaned_values["sales_person"] = sales_person
@@ -261,6 +268,7 @@ def create_or_update_submission(schema_code: str, payload: SubmissionCreate, db:
             raise HTTPException(status_code=422, detail="业务人员不在统一名单中，请选择已配置的业务人员")
         if cleaned_values.get("sales_team") != sales_person_record.sales_team:
             raise HTTPException(status_code=422, detail="Sales Team 必须与业务人员名单中的团队归属一致")
+        subject_key = f"sales:{sales_person.casefold()}"
         same_week_submissions = db.scalars(
             select(FormSubmission)
             .where(
@@ -273,11 +281,18 @@ def create_or_update_submission(schema_code: str, payload: SubmissionCreate, db:
             raise HTTPException(status_code=409, detail="该业务人员本周已有填报记录，请勿重复提交")
     submission = db.scalar(select(FormSubmission).where(FormSubmission.schema_id == schema.id, FormSubmission.reporting_week_id == week.id, FormSubmission.employee_id == employee.id))
     if submission is None:
-        submission = FormSubmission(schema_id=schema.id, reporting_week_id=week.id, employee_id=employee.id, values=cleaned_values)
+        submission = FormSubmission(schema_id=schema.id, reporting_week_id=week.id, employee_id=employee.id, subject_key=subject_key, values=cleaned_values)
         db.add(submission)
     else:
         submission.values = cleaned_values
-    db.commit()
+        submission.subject_key = subject_key
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        if schema.code == "sales-weekly-v1":
+            raise HTTPException(status_code=409, detail="该业务人员本周已有填报记录，请勿重复提交") from error
+        raise HTTPException(status_code=409, detail="该填报主体本周已有记录，请刷新后再试") from error
     db.refresh(submission)
     submission = db.scalar(select(FormSubmission).where(FormSubmission.id == submission.id).options(selectinload(FormSubmission.schema), selectinload(FormSubmission.reporting_week), selectinload(FormSubmission.employee)))
     return _submission_response(submission)

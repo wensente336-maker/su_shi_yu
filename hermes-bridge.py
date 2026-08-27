@@ -42,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             prompt = str(payload["prompt"])
             result = subprocess.run(
-                [HERMES_PYTHON, "-m", "hermes_cli.main", "--profile", PROFILE, "--ignore-rules", "--oneshot", prompt],
+                [HERMES_PYTHON, "-m", "hermes_cli.main", "--profile", PROFILE, "--oneshot", prompt],
                 cwd=PROFILE_ROOT,
                 text=True,
                 capture_output=True,

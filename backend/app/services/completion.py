@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import Employee, FormSchema, FormSubmission, ReportingWeek
+from app.db.models import Employee, FormSchema, FormSubmission, ReportingWeek, SalesPerson
 
 
 def collection_status(db: Session, week: ReportingWeek) -> dict:
@@ -24,22 +24,30 @@ def collection_status(db: Session, week: ReportingWeek) -> dict:
 
     items, missing = [], []
     for form in forms:
-        expected = db.scalars(
-            select(Employee)
-            .where(
-                Employee.department_id == form.department_id,
-                Employee.is_active.is_(True),
-            )
-            .order_by(Employee.id)
-        ).all()
-        received = submitted_by_schema.get(form.id, set())
-        pending = [employee.name for employee in expected if employee.id not in received]
+        if form.code == "sales-weekly-v1":
+            expected = db.scalars(select(SalesPerson).where(SalesPerson.is_active.is_(True)).order_by(SalesPerson.name)).all()
+            received_names = {
+                " ".join(str(item.values.get("sales_person") or "").strip().split())
+                for item in submissions
+                if item.schema_id == form.id
+            }
+            pending = [person.name for person in expected if person.name not in received_names]
+            expected_count, submitted_count = len(expected), len(received_names)
+        else:
+            expected = db.scalars(
+                select(Employee)
+                .where(Employee.department_id == form.department_id, Employee.is_active.is_(True))
+                .order_by(Employee.id)
+            ).all()
+            received = submitted_by_schema.get(form.id, set())
+            pending = [employee.name for employee in expected if employee.id not in received]
+            expected_count, submitted_count = len(expected), len(received)
         complete = bool(expected) and not pending
         item = {
             "code": form.code,
             "name": form.name,
-            "expected_count": len(expected),
-            "submitted_count": len(received),
+            "expected_count": expected_count,
+            "submitted_count": submitted_count,
             "complete": complete,
             "pending_people": pending,
         }

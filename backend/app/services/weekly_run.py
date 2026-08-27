@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
-from app.db.models import BusinessAnalysis, FormSubmission, ReportSnapshot, ReportingWeek
+from app.db.models import BusinessAnalysis, FormSubmission, ReportSnapshot, ReportingWeek, WecomDelivery
 from app.services.analysis import build_analysis_prompt, generate_analysis
 from app.services.completion import collection_status
 from app.services.report_reader import ReportReader
@@ -79,13 +79,31 @@ def run_scheduled_weekly_cycle(db: Session) -> None:
         return
     if week.status == "simulation":
         return
+    already_sent = db.scalar(
+        select(WecomDelivery.id).where(
+            WecomDelivery.reporting_week_id == week.id,
+            WecomDelivery.trigger == "scheduled",
+            WecomDelivery.status == "sent",
+        )
+    )
+    if already_sent:
+        return
     status = collection_status(db, week)
     if not status["complete"]:
         deliver_weekly_summary(db, "scheduled")
         return
     try:
         snapshot = _snapshot_week(db, week)
-        _generate_analysis(db, week, snapshot)
-        deliver_weekly_summary(db, "scheduled")
+        analysis = db.scalar(
+            select(BusinessAnalysis)
+            .where(BusinessAnalysis.reporting_week_id == week.id, BusinessAnalysis.report_snapshot_id == snapshot.id)
+            .order_by(BusinessAnalysis.generated_at.desc())
+        )
+        if analysis is None or analysis.status in {"hermes_analysis_failed", "pending_model_configuration"}:
+            _generate_analysis(db, week, snapshot)
+        delivery = deliver_weekly_summary(db, "scheduled")
+        if delivery.status == "sent":
+            week.status = "closed"
+            db.commit()
     except Exception as error:
         deliver_exception(db, week, "scheduled", f"自动汇总失败：{error}")

@@ -7,6 +7,17 @@ from datetime import date, timedelta
 from pathlib import Path
 
 
+MAX_REPORT_CONTENT_BYTES = 60_000
+
+
+def clip_utf8(content: str, limit: int) -> str:
+    encoded = content.encode("utf-8")
+    if len(encoded) <= limit:
+        return content
+    clipped = encoded[:limit].decode("utf-8", errors="ignore")
+    return f"{clipped}\n\n[周报内容过长，已按安全上限截断]"
+
+
 @dataclass
 class ReportReadResult:
     source_kind: str
@@ -35,7 +46,7 @@ class ReportReader:
         markdown_files = self._weekly_markdown_files(week_start, week_end)
         if markdown_files:
             content = "\n\n".join(f"# 来源：{item.name}\n{item.read_text(encoding='utf-8', errors='replace')}" for item in markdown_files)
-            return ReportReadResult("markdown", [str(item) for item in markdown_files], content[:80000], self._weekly_metadata(week_start, week_end))
+            return ReportReadResult("markdown", [str(item) for item in markdown_files], clip_utf8(content, MAX_REPORT_CONTENT_BYTES), self._weekly_metadata(week_start, week_end))
         daily_dir = self._safe_child("daily_reports")
         entries, source_paths = [], []
         for offset in range((week_end - week_start).days + 1):
@@ -50,7 +61,7 @@ class ReportReader:
             entries.append((current.isoformat(), payload.get("reports", payload) if isinstance(payload, dict) else payload))
             source_paths.append(str(item))
         content = "\n\n".join(f"# 日报 {item_date}\n{json.dumps(payload, ensure_ascii=False, indent=2)}" for item_date, payload in entries)
-        return ReportReadResult("daily_json", source_paths, content[:80000], self._weekly_metadata(week_start, week_end) | {"daily_report_files": len(source_paths)})
+        return ReportReadResult("daily_json", source_paths, clip_utf8(content, MAX_REPORT_CONTENT_BYTES), self._weekly_metadata(week_start, week_end) | {"daily_report_files": len(source_paths)})
 
     def _weekly_markdown_files(self, week_start: date, week_end: date) -> list[Path]:
         candidates: list[Path] = []
