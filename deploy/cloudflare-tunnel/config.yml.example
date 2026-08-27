@@ -1,0 +1,15 @@
+# Copy to /Users/yucai/.config/cloudflared/config.yml only after the domain
+# has passed verification and the named Tunnel has been created in Cloudflare.
+# Keep the generated credentials JSON outside this repository.
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /Users/yucai/.config/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  # Employee-facing form and dashboard UI.
+  - hostname: dashboard.sz-yingjin.top
+    service: http://127.0.0.1:3100
+  # The browser application calls this API host. Protect it with the same
+  # Cloudflare Access policy as the dashboard host.
+  - hostname: api.sz-yingjin.top
+    service: http://127.0.0.1:8100
+  - service: http_status:404
