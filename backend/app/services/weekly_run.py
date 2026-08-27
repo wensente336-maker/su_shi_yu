@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.models import BusinessAnalysis, FormSubmission, ReportSnapshot, ReportingWeek, WecomDelivery
 from app.services.analysis import build_analysis_prompt, generate_analysis
 from app.services.completion import collection_status
+from app.services.hermes_jobs import enqueue_analysis_job
 from app.services.report_reader import ReportReader
 from app.services.wecom import deliver_exception, deliver_weekly_summary
 
@@ -93,6 +94,20 @@ def run_scheduled_weekly_cycle(db: Session) -> None:
         deliver_weekly_summary(db, "scheduled")
         return
     try:
+        if settings.hermes_agent_enabled:
+            analysis = db.scalar(
+                select(BusinessAnalysis)
+                .where(BusinessAnalysis.reporting_week_id == week.id)
+                .order_by(BusinessAnalysis.generated_at.desc())
+            )
+            if analysis is None or analysis.status == "hermes_analysis_failed":
+                enqueue_analysis_job(db, week)
+                return
+            delivery = deliver_weekly_summary(db, "scheduled")
+            if delivery.status == "sent":
+                week.status = "closed"
+                db.commit()
+            return
         snapshot = _snapshot_week(db, week)
         analysis = db.scalar(
             select(BusinessAnalysis)

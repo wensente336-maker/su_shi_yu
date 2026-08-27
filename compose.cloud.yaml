@@ -1,0 +1,56 @@
+# Tencent Cloud CVM runtime. PostgreSQL is TencentDB and therefore intentionally
+# not a container in this file. Bind application ports to loopback; Nginx owns
+# the public HTTPS entry point.
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    env_file: .env.cloud
+    ports:
+      - "127.0.0.1:8100:8000"
+    depends_on:
+      wecom-aibot:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    env_file: .env.cloud
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      api:
+        condition: service_started
+
+  wecom-aibot:
+    build: ./wecom-aibot
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      WECOM_AIBOT_BOT_ID: ${WECOM_AIBOT_BOT_ID}
+      WECOM_AIBOT_SECRET: ${WECOM_AIBOT_SECRET}
+      WECOM_AIBOT_INTERNAL_TOKEN: ${WECOM_AIBOT_INTERNAL_TOKEN}
+    expose:
+      - "8090"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      - api

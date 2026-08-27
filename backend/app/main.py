@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routes import router as api_v1_router
 from app.api.v1.analysis_routes import router as analysis_router
 from app.api.v1.dashboard_routes import router as dashboard_router
+from app.api.v1.hermes_agent_routes import router as hermes_agent_router
 from app.core.config import allowed_origins, settings
 from app.db import Base, SessionLocal, engine
 from app.db.migrations import run_migrations
@@ -37,6 +38,7 @@ app.add_middleware(
 app.include_router(api_v1_router)
 app.include_router(analysis_router)
 app.include_router(dashboard_router)
+app.include_router(hermes_agent_router)
 
 
 @app.get("/health", tags=["system"])

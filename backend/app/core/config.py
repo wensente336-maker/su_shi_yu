@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     hermes_analysis_enabled: bool = False
     hermes_analysis_url: str = "http://host.docker.internal:8120"
     hermes_analysis_token: str | None = None
+    hermes_agent_enabled: bool = False
+    hermes_agent_id: str = "macmini-hermes-01"
+    hermes_agent_shared_secret: str | None = None
+    hermes_agent_clock_skew_seconds: int = 300
+    hermes_agent_lease_seconds: int = 240
+    hermes_agent_max_attempts: int = 3
     wecom_push_enabled: bool = False
     wecom_webhook_url: str | None = None
     wecom_aibot_enabled: bool = False

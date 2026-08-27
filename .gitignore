@@ -1,4 +1,6 @@
 .env
+.env.agent
+.env.cloud
 .DS_Store
 __pycache__/
 .pytest_cache/

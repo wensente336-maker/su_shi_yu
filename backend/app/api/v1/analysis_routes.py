@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db import get_db
 from app.db.models import BusinessAnalysis, Employee, FormSubmission, ReportSnapshot, ReportingWeek
 from app.services.analysis import build_analysis_prompt, generate_analysis
+from app.services.hermes_jobs import enqueue_analysis_job
 from app.services.report_reader import ReportReader
 
 router = APIRouter(prefix="/api/v1")
@@ -46,6 +47,8 @@ def analysis_view(item: BusinessAnalysis) -> dict:
 
 @router.post("/report-snapshots", status_code=201)
 def create_snapshot(payload: SnapshotRequest = SnapshotRequest(), db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
+    if settings.hermes_agent_enabled:
+        raise HTTPException(status_code=409, detail="云端部署由 macmini Hermes Agent 在分析任务中固化周报快照，请直接创建经营分析。")
     week = resolve_week(db, payload.reporting_week_id)
     try:
         result = ReportReader(settings.report_source_root).read_week(week.week_start, week.week_end)
@@ -71,6 +74,9 @@ def list_snapshots(reporting_week_id: int | None = None, db: Session = Depends(g
 @router.post("/business-analyses", status_code=201)
 def create_analysis(payload: AnalysisRequest = AnalysisRequest(), db: Session = Depends(get_db), _: Employee = Depends(require_roles("admin", "department_manager"))) -> dict:
     week = resolve_week(db, payload.reporting_week_id)
+    if settings.hermes_agent_enabled:
+        job = enqueue_analysis_job(db, week)
+        return {"status": job.status, "job_id": job.id, "reporting_week_id": week.id, "message": "已交由 macmini Hermes Agent 处理；完成后会自动回传周报快照与分析结果。"}
     snapshot = db.get(ReportSnapshot, payload.report_snapshot_id) if payload.report_snapshot_id else db.scalar(select(ReportSnapshot).where(ReportSnapshot.reporting_week_id == week.id).order_by(ReportSnapshot.retrieved_at.desc()))
     if snapshot is None or snapshot.reporting_week_id != week.id:
         raise HTTPException(status_code=404, detail="请先生成该统计周的周报快照")
